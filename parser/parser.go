@@ -10,6 +10,8 @@ import (
 
 	"github.com/tufanbarisyildirim/gonginx/config"
 	"github.com/tufanbarisyildirim/gonginx/parser/token"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // Option parsing option
@@ -50,6 +52,7 @@ type Parser struct {
 
 	commentBuffer []string
 	file          *os.File
+	isgbk         bool
 }
 
 // WithSameOptions copy options from another parser
@@ -139,6 +142,20 @@ func NewParser(filePath string, opts ...Option) (*Parser, error) {
 	l.file = filePath
 	p := NewParserFromLexer(l, opts...)
 	p.file = f
+	return p, nil
+}
+
+// NewParserFromGBK create new parser from GBK file
+func NewParserFromGBK(filePath string, opts ...Option) (*Parser, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	l := newLexer(bufio.NewReader(transform.NewReader(f, simplifiedchinese.GB18030.NewDecoder())))
+	l.file = filePath
+	p := NewParserFromLexer(l, opts...)
+	p.file = f
+	p.isgbk = true
 	return p, nil
 }
 
@@ -355,11 +372,20 @@ func (p *Parser) ParseInclude(include *config.Include) (config.IDirective, error
 				p.parsedIncludes[include] = nil
 			}
 
-			parser, err := NewParser(includePath,
-				WithSameOptions(p),
-				withParsedIncludes(p.parsedIncludes),
-				withConfigRoot(p.configRoot),
-			)
+			var parser *Parser
+			if p.isgbk {
+				parser, err = NewParserFromGBK(includePath,
+					WithSameOptions(p),
+					withParsedIncludes(p.parsedIncludes),
+					withConfigRoot(p.configRoot),
+				)
+			} else {
+				parser, err = NewParser(includePath,
+					WithSameOptions(p),
+					withParsedIncludes(p.parsedIncludes),
+					withConfigRoot(p.configRoot),
+				)
+			}
 
 			if err != nil && !p.opts.skipIncludeParsingErr {
 				panic(err)
