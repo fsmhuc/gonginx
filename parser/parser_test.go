@@ -116,6 +116,24 @@ func TestParser_ParseFromFile(t *testing.T) {
 	assert.ErrorContains(t, err2, "no such file or directory")
 }
 
+func TestParser_ParseFromGBKFile(t *testing.T) {
+	t.Parallel()
+	p, err := NewParserFromGBK("../full-example/nginx_gbk.conf")
+	assert.NilError(t, err)
+	assert.Assert(t, p.file != nil, "file must be non-nil")
+	c, _ := p.Parse()
+	servers := c.FindDirectives("server")
+	for _, s := range servers {
+		server_names := s.GetBlock().FindDirectives("server_name")
+		want := []string{"f5054_创兴银行上海分行赟喆测试rsa140", "big.server.com", "f5054_创兴银行上海分行赟喆测试sm2140"}
+		for _, sn := range server_names {
+			for i := 0; i < len(want); i++ {
+				assert.Assert(t, sn.GetParameters()[i].Value == want[i], "server name should be "+want[i])
+			}
+		}
+	}
+}
+
 func TestParser_MultiParamDirecive(t *testing.T) {
 	t.Parallel()
 	_, err := NewParserFromLexer(
